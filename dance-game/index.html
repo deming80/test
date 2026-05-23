@@ -1,0 +1,1882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>节奏炫舞 - Rhythm Dance</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+#game-container {
+  position: relative;
+  width: 700px;
+  height: 800px;
+}
+
+canvas { display: block; }
+
+/* Overlay UI */
+#overlay {
+  position: absolute;
+  top:0; left:0; right:0; bottom:0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#overlay.active { pointer-events: all; }
+
+/* Start Screen */
+.start-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.start-screen.show { display: flex; }
+
+.game-title {
+  font-size: 52px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ff6bff, #6bffff, #ff6bff);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titleShine 2s ease-in-out infinite;
+  text-shadow: none;
+}
+
+@keyframes titleShine {
+  0%,100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.subtitle {
+  color: #aaa;
+  font-size: 14px;
+  letter-spacing: 4px;
+  margin-top: -16px;
+}
+
+.diff-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.diff-btn {
+  padding: 12px 28px;
+  font-size: 16px;
+  font-weight: bold;
+  border: 2px solid;
+  border-radius: 25px;
+  cursor: pointer;
+  background: transparent;
+  color: #fff;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+
+.diff-btn:hover {
+  transform: scale(1.08);
+}
+
+.diff-btn.easy { border-color: #00f0a0; color: #00f0a0; }
+.diff-btn.easy:hover { background: #00f0a0; color: #000; box-shadow: 0 0 25px rgba(0,240,160,0.5); }
+.diff-btn.normal { border-color: #f0a000; color: #f0a000; }
+.diff-btn.normal:hover { background: #f0a000; color: #000; box-shadow: 0 0 25px rgba(240,160,0,0.5); }
+.diff-btn.hard { border-color: #ff4466; color: #ff4466; }
+.diff-btn.hard:hover { background: #ff4466; color: #000; box-shadow: 0 0 25px rgba(255,68,102,0.5); }
+
+/* Result Screen */
+.result-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.result-screen.show { display: flex; }
+
+.result-title {
+  font-size: 40px;
+  font-weight: 900;
+  color: #fff;
+}
+
+.result-grade {
+  font-size: 80px;
+  font-weight: 900;
+  margin: -8px 0;
+}
+
+.grade-s { color: #ffd700; text-shadow: 0 0 40px rgba(255,215,0,0.8); }
+.grade-a { color: #ff6bff; text-shadow: 0 0 30px rgba(255,107,255,0.6); }
+.grade-b { color: #6bffff; text-shadow: 0 0 30px rgba(107,255,255,0.6); }
+.grade-c { color: #aaa; }
+
+.result-stats {
+  display: flex;
+  gap: 32px;
+  color: #ccc;
+  font-size: 15px;
+}
+
+.result-stats div {
+  text-align: center;
+}
+
+.result-stats .stat-val {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.result-stats .stat-label {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.restart-btn {
+  margin-top: 16px;
+  padding: 14px 40px;
+  font-size: 18px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #ff6bff, #6bffff);
+  color: #000;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: all 0.2s;
+}
+
+.restart-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 30px rgba(255,107,255,0.5);
+}
+
+/* In-game HUD */
+.hud {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 40px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.hud-score {
+  color: #fff;
+  font-size: 22px;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+.hud-combo {
+  color: #ffd700;
+  font-size: 28px;
+  font-weight: 900;
+  text-shadow: 0 0 20px rgba(255,215,0,0.8);
+  transition: transform 0.1s;
+}
+
+.hud-combo.shake {
+  animation: comboShake 0.15s ease;
+}
+
+@keyframes comboShake {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+
+.hud-judge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  font-weight: 900;
+  pointer-events: none;
+  z-index: 6;
+  animation: judgePop 0.5s ease-out forwards;
+}
+
+@keyframes judgePop {
+  0% { opacity:1; transform: translate(-50%, -50%) scale(0.5); }
+  30% { opacity:1; transform: translate(-50%, -50%) scale(1.2); }
+  100% { opacity:0; transform: translate(-50%, -50%) scale(1) translateY(-30px); }
+}
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="game"></canvas>
+
+  <!-- In-game HUD -->
+  <div class="hud" id="hud" style="display:none">
+    <div class="hud-score" id="hud-score">0</div>
+    <div class="hud-combo" id="hud-combo"></div>
+  </div>
+
+  <!-- Overlay for start/result -->
+  <div id="overlay" class="active">
+    <div class="start-screen show" id="start-screen">
+      <div class="game-title">节奏炫舞</div>
+      <div class="subtitle">RHYTHM DANCE</div>
+      <div class="diff-buttons">
+        <button class="diff-btn easy" onclick="startGame('easy')">简单</button>
+        <button class="diff-btn normal" onclick="startGame('normal')">普通</button>
+        <button class="diff-btn hard" onclick="startGame('hard')">困难</button>
+      </div>
+      <div style="color:#666;font-size:12px;margin-top:20px;text-align:center;line-height:1.8">
+        <span style="color:#888">↑ ↓ ← →</span> 方向键击打<br>
+        手机点击对应轨道
+      </div>
+    </div>
+
+    <div class="result-screen" id="result-screen">
+      <div class="result-title">演奏结束</div>
+      <div class="result-grade" id="result-grade">S</div>
+      <div class="result-stats">
+        <div>
+          <div class="stat-val" id="result-score">0</div>
+          <div class="stat-label">得分</div>
+        </div>
+        <div>
+          <div class="stat-val" id="result-max-combo">0</div>
+          <div class="stat-label">最大连击</div>
+        </div>
+        <div>
+          <div class="stat-val" id="result-acc">0%</div>
+          <div class="stat-label">准确率</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;color:#888;font-size:13px">
+        <span style="color:#ffd700">Perfect <span id="res-perfect">0</span></span>
+        <span style="color:#00f0a0">Great <span id="res-great">0</span></span>
+        <span style="color:#6bffff">Good <span id="res-good">0</span></span>
+        <span style="color:#888">Miss <span id="res-miss">0</span></span>
+      </div>
+      <button class="restart-btn" onclick="showStartScreen()">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== CONSTANTS ====================
+const CANVAS_W = 700;
+const CANVAS_H = 800;
+const HIT_ZONE_Y = 620;
+const SCROLL_SPEED = 320;
+const BPM = 132;
+const BEAT_DURATION = 60 / BPM;
+const LANE_COUNT = 4;
+const LANE_W = 110;
+const LANES_X = [(CANVAS_W - LANE_COUNT * LANE_W) / 2 + LANE_W * 0 + 55,
+                (CANVAS_W - LANE_COUNT * LANE_W) / 2 + LANE_W * 1 + 55,
+                (CANVAS_W - LANE_COUNT * LANE_W) / 2 + LANE_W * 2 + 55,
+                (CANVAS_W - LANE_COUNT * LANE_W) / 2 + LANE_W * 3 + 55];
+const LANE_COLORS = ['#44aaff', '#ff4466', '#44ff88', '#ffaa00'];
+const LANE_GLOW = ['rgba(68,170,255,0.6)', 'rgba(255,68,102,0.6)', 'rgba(68,255,136,0.6)', 'rgba(255,170,0,0.6)'];
+const DIR_SYMBOLS = ['←', '↑', '↓', '→'];
+const HIT_WINDOW = { perfect: 50, great: 100, good: 180 }; // ms
+const HIT_SCORES = { perfect: 1000, great: 500, good: 200 };
+
+// ==================== CANVAS ====================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = CANVAS_W;
+canvas.height = CANVAS_H;
+
+// ==================== AUDIO ENGINE ====================
+let audioCtx = null;
+let masterGain = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.3;
+  masterGain.connect(audioCtx.destination);
+}
+
+function playDrum(type, time, vol = 1) {
+  if (!audioCtx || !masterGain) return;
+  const t = time;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  if (type === 'kick') {
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(30, t + 0.15);
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(vol * 1.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+  } else if (type === 'snare') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(200, t);
+    osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+    gain.gain.setValueAtTime(vol * 0.6, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    // Noise component
+    playNoise(t, 0.08, vol * 0.4);
+  } else if (type === 'hihat') {
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(800, t);
+    osc.frequency.exponentialRampToValueAtTime(400, t + 0.04);
+    gain.gain.setValueAtTime(vol * 0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  } else if (type === 'clap') {
+    playNoise(t, 0.1, vol * 0.5);
+  }
+
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start(t);
+  osc.stop(t + 0.3);
+}
+
+function playNoise(time, dur, vol) {
+  if (!audioCtx || !masterGain) return;
+  const bufferSize = audioCtx.sampleRate * dur;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  }
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(vol, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+  source.connect(gain);
+  gain.connect(masterGain);
+  source.start(time);
+}
+
+function playBass(note, time, dur) {
+  if (!audioCtx || !masterGain) return;
+  const freq = 55 * Math.pow(2, note / 12);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.25, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 400;
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  osc.start(time);
+  osc.stop(time + dur);
+}
+
+function playLead(note, time, dur) {
+  if (!audioCtx || !masterGain) return;
+  const freq = 440 * Math.pow(2, note / 12);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.08, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + dur * 0.8);
+  gain.gain.setValueAtTime(0.08, time);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start(time);
+  osc.stop(time + dur);
+}
+
+// ==================== SONG DATA ====================
+// Chord progression: Am - F - C - G (vi-IV-I-V)
+const BASS_PATTERN = [
+  // note, beats from start, duration in beats
+  // Intro (16 beats)
+  [9, 0, 8], [5, 8, 8],
+  // Verse 1 (32 beats)
+  [9, 16, 2], [9, 18, 2], [9, 20, 4], [5, 24, 4], [5, 28, 2], [5, 30, 2],
+  [0, 32, 4], [7, 36, 4], [9, 40, 4], [5, 44, 4],
+  // Chorus 1 (32 beats)
+  [9, 48, 4], [5, 52, 4], [0, 56, 4], [7, 60, 4],
+  [9, 64, 4], [5, 68, 4], [0, 72, 4], [7, 76, 4],
+  // Verse 2 (32 beats)
+  [9, 80, 4], [5, 84, 4], [0, 88, 4], [7, 92, 4],
+  [9, 96, 4], [5, 100, 4], [0, 104, 4], [7, 108, 4],
+  // Chorus 2 (32 beats)
+  [9, 112, 4], [5, 116, 4], [0, 120, 4], [7, 124, 4],
+  [9, 128, 4], [5, 132, 4], [0, 136, 4], [7, 140, 4],
+  // Bridge (16 beats)
+  [5, 144, 8], [7, 152, 8],
+  // Final Chorus (32 beats)
+  [9, 160, 4], [5, 164, 4], [0, 168, 4], [7, 172, 4],
+  [9, 176, 4], [5, 180, 4], [0, 184, 4], [7, 188, 4],
+  // Outro (16 beats)
+  [9, 192, 4], [5, 196, 4], [9, 200, 16],
+];
+
+const LEAD_PATTERN = [
+  // Simple melody notes [note, beat, duration]
+  [64, 16, 1], [67, 17, 1], [71, 18, 2], [69, 20, 1], [67, 21, 1], [64, 22, 2],
+  [64, 24, 1], [67, 25, 1], [71, 26, 1], [72, 27, 1], [71, 28, 2], [67, 30, 2],
+  [72, 32, 1], [71, 33, 1], [67, 34, 1], [64, 35, 1], [67, 36, 2], [64, 38, 2],
+  [62, 40, 1], [64, 41, 1], [67, 42, 2], [71, 44, 4],
+  // Chorus melody
+  [64, 48, 1], [67, 49, 1], [71, 50, 1], [72, 51, 1], [76, 52, 2], [72, 54, 1], [71, 55, 1],
+  [67, 56, 2], [71, 58, 1], [72, 59, 1], [71, 60, 2], [67, 62, 2],
+  [64, 64, 1], [67, 65, 1], [71, 66, 1], [72, 67, 1], [76, 68, 2], [79, 70, 2],
+  [76, 72, 1], [72, 73, 1], [71, 74, 1], [67, 75, 1], [71, 76, 4],
+  // Verse 2
+  [64, 80, 1], [67, 81, 1], [71, 82, 2], [69, 84, 1], [67, 85, 1], [64, 86, 2],
+  [64, 88, 1], [67, 89, 1], [71, 90, 1], [72, 91, 1], [71, 92, 2], [67, 94, 2],
+  [72, 96, 1], [71, 97, 1], [67, 98, 1], [64, 99, 1], [67, 100, 2], [64, 102, 2],
+  [62, 104, 1], [64, 105, 1], [67, 106, 2], [71, 108, 4],
+  // Chorus 2
+  [64, 112, 1], [67, 113, 1], [71, 114, 1], [72, 115, 1], [76, 116, 2], [72, 118, 1], [71, 119, 1],
+  [67, 120, 2], [71, 122, 1], [72, 123, 1], [71, 124, 2], [67, 126, 2],
+  [64, 128, 1], [67, 129, 1], [71, 130, 1], [72, 131, 1], [76, 132, 2], [79, 134, 2],
+  [76, 136, 1], [72, 137, 1], [71, 138, 1], [67, 139, 1], [71, 140, 4],
+  // Bridge
+  [69, 144, 2], [71, 146, 2], [72, 148, 4],
+  [69, 152, 2], [71, 154, 2], [67, 156, 4],
+  // Final chorus
+  [64, 160, 1], [67, 161, 1], [71, 162, 1], [72, 163, 1], [76, 164, 2], [72, 166, 1], [71, 167, 1],
+  [67, 168, 2], [71, 170, 1], [72, 171, 1], [71, 172, 2], [67, 174, 2],
+  [64, 176, 1], [67, 177, 1], [71, 178, 1], [72, 179, 1], [76, 180, 2], [79, 182, 2],
+  [76, 184, 1], [72, 185, 1], [71, 186, 1], [67, 187, 1], [71, 188, 2], [64, 190, 2],
+  // Outro
+  [64, 192, 2], [60, 194, 2], [57, 196, 4], [64, 200, 16],
+];
+
+const TOTAL_BEATS = 208;
+
+// ==================== BEATMAP GENERATION ====================
+function generateBeatmap(difficulty) {
+  const beatmap = [];
+  const bd = BEAT_DURATION;
+
+  function add(lane, beat, offset = 0) {
+    beatmap.push({ lane, hitTime: beat * bd + offset * bd });
+  }
+
+  // Pattern helpers
+  function roll(startBeat, gap = 1) { for (let i=0;i<4;i++) add(i, startBeat+i*gap); }
+  function cross(startBeat, gap = 1) { add(0,startBeat);add(2,startBeat+gap);add(1,startBeat+gap*2);add(3,startBeat+gap*3); }
+  function stairs(startBeat, gap = 1) { add(0,startBeat);add(1,startBeat+gap);add(2,startBeat+gap*2);add(3,startBeat+gap*3); }
+  function doubleTap(lane, beat) { add(lane, beat); add(lane, beat + 0.25); }
+  function mirror(startBeat, gap = 1) { add(3,startBeat);add(2,startBeat+gap);add(1,startBeat+gap*2);add(0,startBeat+gap*3); }
+
+  // Song structure: blocks of 4 beats for each section
+  // Intro 0-16
+  if (difficulty !== 'hard') {
+    for (let b = 0; b < 16; b += 4) {
+      if (Math.random() < 0.5) roll(b, 1);
+      else stairs(b, 1);
+    }
+  } else {
+    for (let b = 0; b < 16; b += 2) {
+      cross(b, 0.5);
+    }
+  }
+
+  // Verse 1: 16-48
+  for (let b = 16; b < 48; b += 8) {
+    if (difficulty === 'easy') {
+      roll(b, 1); if (Math.random()<0.5) stairs(b+4, 1);
+      add(Math.floor(Math.random()*4), b+6); add(Math.floor(Math.random()*4), b+7);
+    } else if (difficulty === 'normal') {
+      cross(b, 0.5); stairs(b+2, 0.5);
+      cross(b+4, 0.5); stairs(b+6, 0.5);
+      if (Math.random()<0.4) doubleTap(Math.floor(Math.random()*4), b+3.5);
+    } else {
+      // Hard: dense 8th notes
+      for (let i=0;i<8;i+=0.5) {
+        add(Math.floor(Math.random()*4), b+i);
+      }
+      cross(b+4, 0.25);
+    }
+  }
+
+  // Chorus 1: 48-80
+  for (let b = 48; b < 80; b += 8) {
+    if (difficulty === 'easy') {
+      stairs(b, 1); roll(b+4, 1);
+    } else if (difficulty === 'normal') {
+      cross(b, 0.5); stairs(b+2, 0.5); roll(b+4, 0.5); mirror(b+6, 0.5);
+      if (Math.random()<0.3) doubleTap(Math.floor(Math.random()*4), b+3);
+    } else {
+      for (let i=0;i<8;i+=0.5) add(Math.floor(Math.random()*4), b+i);
+      cross(b+2, 0.25); stairs(b+4, 0.25); mirror(b+6, 0.25);
+    }
+  }
+
+  // Verse 2: 80-112
+  for (let b = 80; b < 112; b += 8) {
+    if (difficulty === 'easy') {
+      if (Math.random()<0.5) roll(b, 1); else cross(b, 1);
+      if (Math.random()<0.5) stairs(b+4, 1); else roll(b+4, 1);
+    } else if (difficulty === 'normal') {
+      stairs(b, 0.5); cross(b+2, 0.5); roll(b+4, 0.5); mirror(b+6, 0.5);
+    } else {
+      for (let i=0;i<8;i+=0.5) add(Math.floor(Math.random()*4), b+i);
+      for (let i=0;i<4;i+=0.25) add(Math.floor(Math.random()*4), b+4+i);
+    }
+  }
+
+  // Chorus 2: 112-144
+  for (let b = 112; b < 144; b += 8) {
+    if (difficulty === 'easy') {
+      cross(b, 1); roll(b+4, 1);
+    } else if (difficulty === 'normal') {
+      cross(b, 0.5); stairs(b+2, 0.5); roll(b+4, 0.5); cross(b+6, 0.5);
+      if (Math.random()<0.3) doubleTap(Math.floor(Math.random()*4), b+3.5);
+    } else {
+      for (let i=0;i<8;i+=0.5) add(Math.floor(Math.random()*4), b+i);
+      cross(b+2, 0.25); stairs(b+4, 0.25); roll(b+6, 0.25);
+    }
+  }
+
+  // Bridge: 144-160 (lighter)
+  for (let b = 144; b < 160; b += 8) {
+    if (difficulty === 'easy') {
+      stairs(b, 2);
+    } else if (difficulty === 'normal') {
+      stairs(b, 1); roll(b+4, 1);
+    } else {
+      stairs(b, 1); cross(b+2, 1); roll(b+4, 1); mirror(b+6, 1);
+    }
+  }
+
+  // Final Chorus: 160-192 (most intense)
+  for (let b = 160; b < 192; b += 8) {
+    if (difficulty === 'easy') {
+      roll(b, 1); stairs(b+4, 1); add(Math.floor(Math.random()*4), b+7);
+    } else if (difficulty === 'normal') {
+      cross(b, 0.5); stairs(b+2, 0.5); roll(b+4, 0.5); mirror(b+6, 0.5);
+      if (Math.random()<0.5) doubleTap(Math.floor(Math.random()*4), b+3);
+    } else {
+      for (let i=0;i<8;i+=0.5) add(Math.floor(Math.random()*4), b+i);
+      cross(b+2, 0.25); stairs(b+4, 0.25); roll(b+6, 0.25);
+      for (let i=0;i<4;i+=0.25) add(Math.floor(Math.random()*4), b+7+i);
+    }
+  }
+
+  // Outro: 192-208
+  for (let b = 192; b < TOTAL_BEATS; b += 8) {
+    if (difficulty === 'easy') {
+      stairs(b, 1);
+    } else if (difficulty === 'normal') {
+      cross(b, 0.5); stairs(b+4, 0.5);
+    } else {
+      cross(b, 0.5); for (let i=0;i<4;i+=0.5) add(Math.floor(Math.random()*4), b+4+i);
+    }
+  }
+
+  // Sort by hitTime
+  beatmap.sort((a, b) => a.hitTime - b.hitTime);
+  return beatmap;
+}
+
+// ==================== SCHEDULE AUDIO ====================
+function scheduleSong(startTime) {
+  const bd = BEAT_DURATION;
+
+  // Drums
+  for (let beat = 0; beat < TOTAL_BEATS; beat++) {
+    const t = startTime + beat * bd;
+    const barBeat = beat % 4;
+
+    if (barBeat === 0) { // Beat 1 - strong kick
+      playDrum('kick', t, 1.2);
+    } else if (barBeat === 2) { // Beat 3 - kick
+      playDrum('kick', t, 0.9);
+    }
+
+    if (barBeat === 1 || barBeat === 3) { // Beat 2 and 4 - snare
+      playDrum('snare', t, 0.8);
+      if (barBeat === 3 && beat % 8 === 7) playDrum('clap', t, 1); // Clap every 2 bars
+    }
+
+    // Hi-hat on every eighth note
+    playDrum('hihat', t, 0.6);
+    playDrum('hihat', t + bd / 2, 0.4);
+  }
+
+  // Bass
+  for (const [note, beat, dur] of BASS_PATTERN) {
+    playBass(note, startTime + beat * bd, dur * bd);
+  }
+
+  // Lead melody
+  for (const [note, beat, dur] of LEAD_PATTERN) {
+    playLead(note, startTime + beat * bd, dur * bd);
+  }
+}
+
+// ==================== GAME STATE ====================
+let difficulty = 'normal';
+let beatmap = [];
+let arrows = [];
+let effects = [];
+let particles = [];
+let stageLights = [];
+let songStartTime = 0;
+let score = 0;
+let combo = 0;
+let maxCombo = 0;
+let perfectCount = 0, greatCount = 0, goodCount = 0, missCount = 0;
+let gameRunning = false;
+let gameFinished = false;
+let lastJudgment = null; // {text, color, time}
+// Dancer animation state
+let dancerAnim = 0;
+let dancerMove = 'idle';
+let dancerMoveTimer = 0;
+let dancerMoveTransition = 0;
+let dancerPrevMove = 'idle';
+let dancerBeatPhase = 0;
+let danceMoveQueue = []; // Queue of dance moves to cycle through
+const DANCE_MOVES = ['groove', 'bounce', 'sway', 'shoulder_roll', 'head_nod', 'step_tap'];
+
+// ==================== ARROW SYSTEM ====================
+function spawnArrows() {
+  arrows = beatmap.map(bm => ({
+    lane: bm.lane,
+    hitTime: bm.hitTime,
+    y: 0,
+    active: true,
+    hit: false,
+    missed: false,
+  }));
+}
+
+// ==================== EFFECTS ====================
+function addEffect(lane, judgment) {
+  const colors = { perfect: '#ffd700', great: '#00f0a0', good: '#6bffff' };
+  const c = colors[judgment] || '#fff';
+  effects.push({
+    x: LANES_X[lane],
+    y: HIT_ZONE_Y,
+    radius: 20,
+    maxRadius: 80,
+    life: 1,
+    color: c,
+  });
+}
+
+function addParticles(x, y, color, count, config = {}) {
+  const { minSpeed = 3, maxSpeed = 10, minSize = 2, maxSize = 6, upward = -3, spread = Math.PI * 2 } = config;
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * spread - spread / 2 - Math.PI / 2;
+    const speed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+    const isSpark = Math.random() < 0.3;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed + upward,
+      life: 1,
+      decay: isSpark ? 0.03 + Math.random() * 0.06 : 0.012 + Math.random() * 0.035,
+      color,
+      size: minSize + Math.random() * (maxSize - minSize),
+      isSpark,
+      trail: [],
+    });
+  }
+}
+
+// ==================== JUDGMENT ====================
+function judgeArrow(lane) {
+  const songPos = audioCtx ? audioCtx.currentTime - songStartTime : 0;
+
+  // Find the closest un-hit arrow in this lane
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const a of arrows) {
+    if (!a.active || a.hit || a.missed || a.lane !== lane) continue;
+    const dist = Math.abs(a.hitTime - songPos) * 1000; // to ms
+    if (dist < HIT_WINDOW.good && dist < bestDist) {
+      best = a;
+      bestDist = dist;
+    }
+  }
+
+  if (!best) return;
+
+  let judgment;
+  if (bestDist <= HIT_WINDOW.perfect) judgment = 'perfect';
+  else if (bestDist <= HIT_WINDOW.great) judgment = 'great';
+  else judgment = 'good';
+
+  best.hit = true;
+  best.active = false;
+
+  // Score
+  const pts = HIT_SCORES[judgment];
+  score += pts;
+  combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  if (judgment === 'perfect') perfectCount++;
+  else if (judgment === 'great') greatCount++;
+  else goodCount++;
+
+  // Effects
+  addEffect(lane, judgment);
+  addParticles(LANES_X[lane], HIT_ZONE_Y, LANE_COLORS[lane], judgment === 'perfect' ? 20 : 10);
+
+  // Judge text - remove old
+  const oldJudge = document.querySelector('.hud-judge');
+  if (oldJudge) oldJudge.remove();
+
+  const judgeEl = document.createElement('div');
+  judgeEl.className = 'hud-judge';
+  const judgeNames = { perfect: 'Perfect!', great: 'Great', good: 'Good' };
+  const judgeColors = { perfect: '#ffd700', great: '#00f0a0', good: '#6bffff' };
+  judgeEl.textContent = judgeNames[judgment];
+  judgeEl.style.color = judgeColors[judgment];
+  document.getElementById('game-container').appendChild(judgeEl);
+  setTimeout(() => judgeEl.remove(), 500);
+
+  // Update HUD
+  updateHUD();
+
+  // Dancer accent move based on judgment
+  if (judgment === 'perfect') {
+    const perfectMoves = ['spin', 'jump', 'kick', 'celebrate', 'pop'];
+    dancerPrevMove = dancerMove;
+    dancerMove = perfectMoves[Math.floor(Math.random() * perfectMoves.length)];
+    dancerMoveTimer = 18;
+    dancerMoveTransition = 0;
+  } else if (judgment === 'great') {
+    const greatMoves = ['wave', 'kick', 'pop', 'shoulder_roll'];
+    dancerPrevMove = dancerMove;
+    dancerMove = greatMoves[Math.floor(Math.random() * greatMoves.length)];
+    dancerMoveTimer = 14;
+    dancerMoveTransition = 0;
+  } else if (judgment === 'good') {
+    dancerPrevMove = dancerMove;
+    dancerMove = Math.random() < 0.5 ? 'wave' : 'head_nod';
+    dancerMoveTimer = 10;
+    dancerMoveTransition = 0;
+  }
+
+  // Combo milestone celebration
+  if (combo > 0 && combo % 25 === 0) {
+    dancerPrevMove = dancerMove;
+    dancerMove = 'celebrate';
+    dancerMoveTimer = 24;
+    dancerMoveTransition = 0;
+    // Extra particles
+    addParticles(CANVAS_W / 2, HIT_ZONE_Y + 60 + 55, '#ffd700', 30);
+  }
+
+  // Combo shake
+  if (combo > 0 && combo % 10 === 0) {
+    const comboEl = document.getElementById('hud-combo');
+    comboEl.classList.add('shake');
+    setTimeout(() => comboEl.classList.remove('shake'), 150);
+  }
+}
+
+function updateHUD() {
+  document.getElementById('hud-score').textContent = score;
+  const comboEl = document.getElementById('hud-combo');
+  if (combo > 1) {
+    comboEl.textContent = combo + ' combo';
+    // Color based on combo
+    if (combo >= 100) comboEl.style.color = '#ff6bff';
+    else if (combo >= 50) comboEl.style.color = '#ffd700';
+    else if (combo >= 20) comboEl.style.color = '#ff8800';
+    else comboEl.style.color = '#ffd700';
+    comboEl.style.display = 'block';
+  } else {
+    comboEl.style.display = 'none';
+  }
+}
+
+// ==================== GAME LOOP ====================
+function update() {
+  if (!gameRunning) return;
+
+  const songPos = audioCtx ? audioCtx.currentTime - songStartTime : 0;
+  const songEndTime = TOTAL_BEATS * BEAT_DURATION;
+
+  // Check for song end
+  if (songPos >= songEndTime + 2 && !gameFinished) {
+    gameFinished = true;
+    endGame();
+    return;
+  }
+
+  // Update arrow positions
+  for (const a of arrows) {
+    if (!a.active) continue;
+    const timeToHit = a.hitTime - songPos;
+    a.y = HIT_ZONE_Y - timeToHit * SCROLL_SPEED;
+
+    // Check miss (arrow passed well beyond hit zone)
+    if (timeToHit < -0.15 && !a.hit && !a.missed) {
+      a.missed = true;
+      a.active = false;
+      combo = 0;
+      missCount++;
+      updateHUD();
+      // Show miss
+      const judgeEl = document.createElement('div');
+      judgeEl.className = 'hud-judge';
+      judgeEl.textContent = 'Miss';
+      judgeEl.style.color = '#888';
+      document.getElementById('game-container').appendChild(judgeEl);
+      setTimeout(() => judgeEl.remove(), 500);
+      dancerPrevMove = dancerMove;
+      dancerMove = 'stumble';
+      dancerMoveTimer = 12;
+      dancerMoveTransition = 0;
+    }
+  }
+
+  // Update effects
+  for (let i = effects.length - 1; i >= 0; i--) {
+    const e = effects[i];
+    e.radius += (e.maxRadius - e.radius) * 0.2;
+    e.life -= 0.03;
+    if (e.life <= 0) effects.splice(i, 1);
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    // Store trail
+    if (p.isSpark && p.life > 0.5) {
+      p.trail.push({ x: p.x, y: p.y, life: 0.5 });
+      if (p.trail.length > 4) p.trail.shift();
+    }
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += p.isSpark ? 0.08 : 0.15;
+    p.life -= p.decay;
+    // Fade trail
+    for (const tp of p.trail) tp.life -= 0.15;
+    p.trail = p.trail.filter(tp => tp.life > 0);
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Update dancer animation
+  dancerAnim += 0.12;
+  dancerBeatPhase = (songPos / BEAT_DURATION) % 1;
+
+  // Cycle through dance moves based on song position
+  if (danceMoveQueue.length === 0) {
+    // Refill queue with variety
+    const shuffled = [...DANCE_MOVES].sort(() => Math.random() - 0.5);
+    danceMoveQueue.push(...shuffled);
+  }
+
+  // Change base dance move every 2 beats
+  const currentBeat = Math.floor(songPos / BEAT_DURATION);
+  const grooveMoves = ['groove', 'bounce', 'sway', 'shoulder_roll', 'head_nod', 'step_tap'];
+  if (currentBeat % 2 === 0 && grooveMoves.includes(dancerMove) && dancerMoveTimer <= 0 && danceMoveQueue.length > 0) {
+    dancerPrevMove = dancerMove;
+    dancerMove = danceMoveQueue.shift();
+    dancerMoveTimer = Math.floor(Math.random() * 4 + 4);
+  }
+
+  // Accent move timer (from player actions overrides base groove)
+  if (dancerMoveTimer > 0) {
+    dancerMoveTimer--;
+    if (dancerMoveTransition < 1) dancerMoveTransition += 0.15;
+  } else {
+    if (!grooveMoves.includes(dancerMove)) {
+      dancerPrevMove = dancerMove;
+      dancerMove = 'groove';
+      dancerMoveTimer = 0;
+      dancerMoveTransition = 0;
+    }
+    if (dancerMoveTransition > 0) dancerMoveTransition -= 0.1;
+  }
+
+  // Update stage lights - sync with beat
+  stageLights = stageLights.filter(l => {
+    l.intensity *= 0.93;
+    return l.intensity > 0.03;
+  });
+  // Beat-synced light bursts
+  const beatPos = (songPos / BEAT_DURATION) % 1;
+  if (beatPos < 0.08) {
+    // Strong beat - burst of lights
+    for (let i = 0; i < 3; i++) {
+      stageLights.push({
+        x: LANES_X[Math.floor(Math.random() * 4)],
+        y: 30 + Math.random() * 180,
+        color: LANE_COLORS[Math.floor(Math.random() * 4)],
+        intensity: 0.5 + Math.random() * 0.4,
+        life: 1,
+      });
+    }
+  }
+  // Ambient drifting lights
+  if (Math.random() < 0.25) {
+    stageLights.push({
+      x: Math.random() * CANVAS_W,
+      y: 40 + Math.random() * 200,
+      color: LANE_COLORS[Math.floor(Math.random() * 4)],
+      intensity: 0.2 + Math.random() * 0.3,
+      life: 1,
+    });
+  }
+  // Fade lights
+  for (const l of stageLights) {
+    if (l.life !== undefined) l.life = Math.max(0, (l.life || 1) - 0.008);
+    l.intensity *= (l.life !== undefined ? l.life : 0.93);
+  }
+}
+
+// ==================== RENDER ====================
+function drawStage() {
+  // Dark background with subtle gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  bgGrad.addColorStop(0, '#080812');
+  bgGrad.addColorStop(0.5, '#0c0c20');
+  bgGrad.addColorStop(1, '#0a0a18');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Floor
+  const floorY = HIT_ZONE_Y + 60;
+
+  // Stage floor tiles (perspective grid)
+  ctx.strokeStyle = 'rgba(60,60,100,0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 12; i++) {
+    const x = CANVAS_W / 2 + (i - 5.5) * 80;
+    ctx.beginPath();
+    ctx.moveTo(x, floorY);
+    ctx.lineTo(x + (i - 5.5) * 40, CANVAS_H);
+    ctx.stroke();
+  }
+  // Horizontal floor lines
+  for (let i = 0; i < 6; i++) {
+    const y = floorY + i * 30;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(CANVAS_W, y);
+    ctx.stroke();
+  }
+
+  // Floor fill
+  const floorGrad = ctx.createLinearGradient(0, floorY, 0, CANVAS_H);
+  floorGrad.addColorStop(0, 'rgba(20,20,50,0.8)');
+  floorGrad.addColorStop(0.5, 'rgba(15,15,40,0.9)');
+  floorGrad.addColorStop(1, 'rgba(10,10,25,0.95)');
+  ctx.fillStyle = floorGrad;
+  ctx.fillRect(0, floorY, CANVAS_W, CANVAS_H - floorY);
+
+  // Floor highlight line
+  ctx.strokeStyle = 'rgba(120,120,255,0.5)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(120,120,255,0.8)';
+  ctx.shadowBlur = 20;
+  ctx.beginPath();
+  ctx.moveTo(0, floorY);
+  ctx.lineTo(CANVAS_W, floorY);
+  ctx.stroke();
+
+  // Second thinner line
+  ctx.strokeStyle = 'rgba(200,200,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(0, floorY + 2);
+  ctx.lineTo(CANVAS_W, floorY + 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Spotlight on dancer area
+  const spotX = CANVAS_W / 2;
+  const spotY = floorY + 70;
+  const spotGrad = ctx.createRadialGradient(spotX, spotY, 20, spotX, spotY, 200);
+  spotGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
+  spotGrad.addColorStop(0.5, 'rgba(255,220,255,0.03)');
+  spotGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = spotGrad;
+  ctx.fillRect(spotX - 200, spotY - 200, 400, 400);
+
+  // Stage lights (background ambiance)
+  for (const l of stageLights) {
+    const grad = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, 120);
+    const hexToRgba = (hex, a) => {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return `rgba(${r},${g},${b},${a})`;
+    };
+    grad.addColorStop(0, hexToRgba(l.color, l.intensity));
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fillRect(l.x - 120, l.y - 120, 240, 240);
+  }
+
+  // Music visualization bars (bottom)
+  if (audioCtx && gameRunning) {
+    const songPos = audioCtx.currentTime - songStartTime;
+    const beatInBar = (songPos / BEAT_DURATION) % 4;
+    const beatStrength = Math.pow(Math.abs(Math.sin(beatInBar * Math.PI)), 2);
+
+    for (let i = 0; i < 8; i++) {
+      const bx = CANVAS_W / 2 - 120 + i * 34;
+      const barH = 10 + beatStrength * 30 + Math.sin(songPos * 8 + i) * 8;
+      const by = CANVAS_H - 12 - barH;
+      const bright = 0.3 + beatStrength * 0.5;
+
+      const barGrad = ctx.createLinearGradient(0, by, 0, CANVAS_H - 12);
+      barGrad.addColorStop(0, `rgba(${120+i*15},${160+i*5},255,${bright})`);
+      barGrad.addColorStop(1, `rgba(${60+i*10},${80+i*3},200,${bright*0.5})`);
+      ctx.fillStyle = barGrad;
+      ctx.fillRect(bx, by, 20, barH);
+    }
+  }
+}
+
+function drawLanes() {
+  // Lane backgrounds
+  for (let i = 0; i < LANE_COUNT; i++) {
+    const lx = LANES_X[i] - LANE_W / 2;
+    // Lane area
+    ctx.fillStyle = 'rgba(20,20,40,0.5)';
+    ctx.fillRect(lx, 0, LANE_W, HIT_ZONE_Y);
+
+    // Lane borders
+    ctx.strokeStyle = 'rgba(50,50,80,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(lx, 0, LANE_W, HIT_ZONE_Y);
+
+    // Center guide line
+    ctx.strokeStyle = 'rgba(80,80,120,0.2)';
+    ctx.setLineDash([8, 20]);
+    ctx.beginPath();
+    ctx.moveTo(LANES_X[i], 0);
+    ctx.lineTo(LANES_X[i], HIT_ZONE_Y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Hit zone bar
+  const barY = HIT_ZONE_Y;
+  const barGrad = ctx.createLinearGradient(0, barY - 15, 0, barY + 15);
+  barGrad.addColorStop(0, 'rgba(255,255,255,0)');
+  barGrad.addColorStop(0.45, 'rgba(255,255,255,0.15)');
+  barGrad.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+  barGrad.addColorStop(0.55, 'rgba(255,255,255,0.15)');
+  barGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = barGrad;
+  ctx.fillRect(0, barY - 15, CANVAS_W, 30);
+
+  // Hit zone neon lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1;
+  ctx.shadowColor = 'rgba(255,255,255,0.8)';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(LANES_X[0] - LANE_W / 2, barY);
+  ctx.lineTo(LANES_X[3] + LANE_W / 2, barY);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawArrowShape(x, y, lane, scale = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  const s = 36; // half-size of the arrow
+
+  // Glow
+  ctx.shadowColor = LANE_GLOW[lane];
+  ctx.shadowBlur = 15;
+
+  // Main arrow body
+  const grad = ctx.createLinearGradient(0, -s, 0, s);
+  const c = LANE_COLORS[lane];
+  grad.addColorStop(0, c);
+  grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = grad;
+
+  // Draw arrow shape
+  ctx.beginPath();
+  if (lane === 0) { // Left
+    ctx.moveTo(s, -s * 0.6);
+    ctx.lineTo(-s * 0.3, 0);
+    ctx.lineTo(s, s * 0.6);
+    ctx.lineTo(s * 0.2, 0);
+    ctx.closePath();
+  } else if (lane === 1) { // Up
+    ctx.moveTo(0, -s);
+    ctx.lineTo(-s * 0.6, s * 0.3);
+    ctx.lineTo(s * 0.6, s * 0.3);
+    ctx.closePath();
+  } else if (lane === 2) { // Down
+    ctx.moveTo(0, s);
+    ctx.lineTo(-s * 0.6, -s * 0.3);
+    ctx.lineTo(s * 0.6, -s * 0.3);
+    ctx.closePath();
+  } else { // Right
+    ctx.moveTo(-s, -s * 0.6);
+    ctx.lineTo(s * 0.3, 0);
+    ctx.lineTo(-s, s * 0.6);
+    ctx.lineTo(-s * 0.2, 0);
+    ctx.closePath();
+  }
+  ctx.fill();
+
+  // Highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawArrows() {
+  const songPos = audioCtx ? audioCtx.currentTime - songStartTime : 0;
+  const beatPos = (songPos / BEAT_DURATION) % 1;
+  const beatPulse = 1 + Math.pow(Math.max(0, 1 - beatPos), 3) * 0.15;
+
+  // Draw receptors with beat pulse
+  for (let i = 0; i < LANE_COUNT; i++) {
+    // Beat-synced pulse on receptors
+    const rScale = 0.8 * beatPulse;
+    ctx.save();
+    ctx.globalAlpha = 0.7 + Math.pow(Math.max(0, 1 - beatPos), 2) * 0.3;
+    drawArrowShape(LANES_X[i], HIT_ZONE_Y, i, rScale);
+    ctx.restore();
+
+    // Glow ring under receptor
+    ctx.fillStyle = LANE_GLOW[i].replace('0.6', (0.08 + beatPulse * 0.05).toString());
+    ctx.beginPath();
+    ctx.arc(LANES_X[i], HIT_ZONE_Y, 14 * beatPulse, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Draw falling arrows
+  for (const a of arrows) {
+    if (!a.active || a.y < -50 || a.y > CANVAS_H + 50) continue;
+
+    const lx = LANES_X[a.lane];
+    const distToHit = Math.abs(a.y - HIT_ZONE_Y);
+    const alpha = a.y < 0 ? Math.max(0, (50 + a.y) / 50) :
+                  a.y > HIT_ZONE_Y + 80 ? Math.max(0, 1 - (a.y - HIT_ZONE_Y - 80) / 40) : 1;
+
+    // Arrow gets slightly bigger and brighter near hit zone
+    const nearScale = distToHit < 60 ? 1.1 + (1 - distToHit / 60) * 0.15 : 1.1;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawArrowShape(lx, a.y, a.lane, nearScale);
+    // Trail glow when near hit zone
+    if (distToHit < 40) {
+      ctx.fillStyle = LANE_GLOW[a.lane].replace('0.6', '0.2');
+      ctx.beginPath();
+      ctx.arc(lx, a.y, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawEffects() {
+  for (const e of effects) {
+    ctx.save();
+    ctx.globalAlpha = e.life;
+
+    // Expanding ring
+    ctx.strokeStyle = e.color;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = e.color;
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner fill with alpha
+    const hexToRgba = (hex, a) => {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return `rgba(${r},${g},${b},${a})`;
+    };
+    ctx.fillStyle = hexToRgba(e.color, 0.15);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    // Trail
+    for (const tp of p.trail) {
+      ctx.globalAlpha = tp.life * p.life;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(tp.x, tp.y, p.size * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.isSpark ? '#fff' : p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = p.isSpark ? 12 : 6;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawDancer() {
+  const cx = CANVAS_W / 2;
+  const baseY = HIT_ZONE_Y + 60 + 55;
+  const songPos = audioCtx ? audioCtx.currentTime - songStartTime : 0;
+  const beatPos = (songPos / BEAT_DURATION) % 1;
+  const beatPulse = Math.pow(Math.max(0, 1 - beatPos), 2.5);
+  const beatPulseSharp = beatPos < 0.1 ? (1 - beatPos / 0.1) : 0;
+
+  ctx.save();
+  ctx.translate(cx, baseY);
+
+  // ---- Floor shadow ----
+  const shadowScale = 1 - beatPulse * 0.3;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 48, 28 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // ---- Combo glow aura ----
+  const auraIntensity = Math.min(combo / 80, 1);
+  if (auraIntensity > 0.05) {
+    const auraColor = combo >= 80 ? '#ff6bff' : combo >= 50 ? '#ffd700' : combo >= 25 ? '#ff8800' : '#ffaa44';
+    const auraPulse = 1 + beatPulse * 0.3;
+    const auraGrad = ctx.createRadialGradient(0, 0, 5, 0, 0, 60 * auraPulse * (0.5 + auraIntensity * 0.5));
+    const hexToRgba = (hex, a) => {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return `rgba(${r},${g},${b},${a})`;
+    };
+    auraGrad.addColorStop(0, hexToRgba(auraColor, auraIntensity * 0.2));
+    auraGrad.addColorStop(0.5, hexToRgba(auraColor, auraIntensity * 0.08));
+    auraGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = auraGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 60 * auraPulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Combo sparks
+    if (combo >= 50 && Math.random() < 0.4) {
+      const sparkAngle = Math.random() * Math.PI * 2;
+      const sparkDist = 30 + Math.random() * 40;
+      addParticles(
+        cx + Math.cos(sparkAngle) * sparkDist,
+        baseY + Math.sin(sparkAngle) * sparkDist,
+        auraColor, 1
+      );
+    }
+  }
+
+  // ---- Compute animation params ----
+  const t = dancerAnim;
+  const comboBoost = Math.min(combo / 60, 1);
+
+  // Base bounce (always active, synced to beat)
+  let bounceAmp = 6 + beatPulse * 12 + comboBoost * 4;
+  let bodyBounce = Math.sin(t * 3.2) * bounceAmp * 0.5 + beatPulseSharp * bounceAmp;
+
+  // Body sway
+  let bodySway = Math.sin(t * 1.7) * 3;
+  let bodyTilt = Math.sin(t * 1.3) * 0.06;
+
+  // Head movement
+  let headBob = Math.sin(t * 4.5) * 4 * (1 + comboBoost);
+  let headTilt = Math.sin(t * 2.1) * 0.1;
+
+  // Arm angles (base groove)
+  let leftUpperAngle = -0.3 + Math.sin(t * 2.5) * 0.4;
+  let leftForeAngle = -0.5 + Math.sin(t * 3.1 + 1) * 0.3;
+  let rightUpperAngle = -0.3 + Math.cos(t * 2.5) * 0.4;
+  let rightForeAngle = -0.5 + Math.cos(t * 3.1 + 1) * 0.3;
+
+  // Leg angles
+  let leftLegAngle = Math.sin(t * 2.5) * 0.15;
+  let rightLegAngle = Math.cos(t * 2.5) * 0.15;
+  let leftKneeAngle = 0;
+  let rightKneeAngle = 0;
+
+  // ---- Accent move overrides ----
+  const moveWeight = dancerMoveTransition;
+  const moveTimer = dancerMoveTimer;
+
+  switch (dancerMove) {
+    case 'spin': {
+      bodyTilt = Math.sin(moveTimer * 0.7) * 0.15;
+      leftUpperAngle = 1.5 * moveWeight + (1-moveWeight) * leftUpperAngle;
+      rightUpperAngle = 1.5 * moveWeight + (1-moveWeight) * rightUpperAngle;
+      leftForeAngle = -2.0 * moveWeight + (1-moveWeight) * leftForeAngle;
+      rightForeAngle = -2.0 * moveWeight + (1-moveWeight) * rightForeAngle;
+      leftLegAngle = 0.3 * moveWeight + (1-moveWeight) * leftLegAngle;
+      rightLegAngle = -0.3 * moveWeight + (1-moveWeight) * rightLegAngle;
+      bodyBounce = -8 * moveWeight + (1-moveWeight) * bodyBounce;
+      break;
+    }
+    case 'jump': {
+      const jumpCurve = Math.sin(moveTimer * 0.5) * Math.max(0, moveTimer / 18);
+      bodyBounce = -25 * jumpCurve * moveWeight + (1-moveWeight) * bodyBounce;
+      leftUpperAngle = -1.8 * moveWeight + (1-moveWeight) * leftUpperAngle;
+      rightUpperAngle = -1.8 * moveWeight + (1-moveWeight) * rightUpperAngle;
+      leftLegAngle = -0.4 * moveWeight + (1-moveWeight) * leftLegAngle;
+      rightLegAngle = 0.4 * moveWeight + (1-moveWeight) * rightLegAngle;
+      break;
+    }
+    case 'kick': {
+      const kickPhase = moveTimer * 0.4;
+      rightLegAngle = -1.0 * Math.sin(kickPhase) * moveWeight + (1-moveWeight) * rightLegAngle;
+      rightKneeAngle = -0.5 * moveWeight + (1-moveWeight) * rightKneeAngle;
+      leftUpperAngle = Math.sin(kickPhase) * 0.8 * moveWeight + (1-moveWeight) * leftUpperAngle;
+      rightUpperAngle = -0.5 * moveWeight + (1-moveWeight) * rightUpperAngle;
+      bodySway = -5 * moveWeight + (1-moveWeight) * bodySway;
+      break;
+    }
+    case 'wave': {
+      const wavePhase = moveTimer * 0.4;
+      const wv = Math.min(1, moveWeight * 1.3);
+      leftUpperAngle = (0.5 + Math.sin(wavePhase) * 1.2) * wv + (1-wv) * leftUpperAngle;
+      leftForeAngle = (-1.0 + Math.sin(wavePhase + 0.8) * 0.8) * wv + (1-wv) * leftForeAngle;
+      rightUpperAngle = (0.5 + Math.cos(wavePhase) * 1.2) * wv + (1-wv) * rightUpperAngle;
+      rightForeAngle = (-1.0 + Math.cos(wavePhase + 0.8) * 0.8) * wv + (1-wv) * rightForeAngle;
+      bodySway = Math.sin(wavePhase * 0.7) * 10 * wv + (1-wv) * bodySway;
+      bodyTilt = Math.cos(wavePhase * 0.5) * 0.12 * wv + (1-wv) * bodyTilt;
+      break;
+    }
+    case 'celebrate': {
+      const cv = Math.min(1, moveWeight * 1.5);
+      leftUpperAngle = (-2.2 + Math.sin(moveTimer * 0.5) * 0.3) * cv + (1-cv) * leftUpperAngle;
+      rightUpperAngle = (-2.2 + Math.cos(moveTimer * 0.5) * 0.3) * cv + (1-cv) * rightUpperAngle;
+      leftForeAngle = -0.3 * cv + (1-cv) * leftForeAngle;
+      rightForeAngle = -0.3 * cv + (1-cv) * rightForeAngle;
+      leftLegAngle = (Math.sin(moveTimer * 0.8) * 0.3) * cv + (1-cv) * leftLegAngle;
+      rightLegAngle = (Math.cos(moveTimer * 0.8) * 0.3) * cv + (1-cv) * rightLegAngle;
+      bodyBounce = (-12 * Math.abs(Math.sin(moveTimer * 0.5))) * cv + (1-cv) * bodyBounce;
+      headBob = 8 * cv + (1-cv) * headBob;
+      break;
+    }
+    case 'pop': {
+      const popBurst = beatPulseSharp > 0.8 ? 1 : 0;
+      const pv = popBurst > 0 ? 1 : moveWeight;
+      leftUpperAngle = (-0.5 + popBurst * 1.5) * pv + (1-pv) * leftUpperAngle;
+      rightUpperAngle = (0.5 - popBurst * 1.5) * pv + (1-pv) * rightUpperAngle;
+      leftForeAngle = (-2.0 + popBurst * 1.5) * pv + (1-pv) * leftForeAngle;
+      rightForeAngle = (-2.0 + popBurst * 1.5) * pv + (1-pv) * rightForeAngle;
+      bodyTilt = popBurst * 0.1 * pv + (1-pv) * bodyTilt;
+      bodyBounce = popBurst * -15 * pv + (1-pv) * bodyBounce;
+      break;
+    }
+    case 'stumble': {
+      const sv = Math.min(1, moveWeight * 1.8);
+      bodySway = Math.sin(moveTimer * 1.5) * 20 * (moveTimer / 12) * sv + (1-sv) * bodySway;
+      bodyTilt = Math.cos(moveTimer * 1.2) * 0.2 * (moveTimer / 12) * sv + (1-sv) * bodyTilt;
+      leftUpperAngle = (0.3 + Math.random() * 0.3) * sv + (1-sv) * leftUpperAngle;
+      rightUpperAngle = (-1.0 + Math.random() * 0.3) * sv + (1-sv) * rightUpperAngle;
+      leftLegAngle = 0.4 * sv + (1-sv) * leftLegAngle;
+      rightLegAngle = -0.3 * sv + (1-sv) * rightLegAngle;
+      break;
+    }
+    case 'shoulder_roll': {
+      leftUpperAngle = -0.5 + Math.sin(moveTimer * 0.6) * 1.0;
+      rightUpperAngle = -0.5 + Math.cos(moveTimer * 0.6) * 1.0;
+      leftForeAngle = -0.8;
+      rightForeAngle = -0.8;
+      break;
+    }
+    case 'head_nod': {
+      headBob = Math.abs(Math.sin(moveTimer * 0.5)) * 15;
+      headTilt = Math.sin(moveTimer * 0.7) * 0.15;
+      bodyBounce = Math.abs(Math.sin(moveTimer * 0.5)) * 8;
+      break;
+    }
+    case 'step_tap': {
+      leftLegAngle = Math.sin(moveTimer * 0.6) * 0.35;
+      rightLegAngle = Math.cos(moveTimer * 0.6) * 0.35;
+      leftKneeAngle = Math.sin(moveTimer * 0.3) * 0.3;
+      rightUpperAngle = 0.2 + Math.sin(moveTimer * 0.5) * 0.3;
+      leftUpperAngle = -0.2 + Math.cos(moveTimer * 0.5) * 0.3;
+      break;
+    }
+  }
+
+  // Interpolate towards target (smooth blending)
+  if (dancerMoveTransition < 1 && dancerPrevMove !== dancerMove) {
+    // The lerp happens naturally as moveWeight increases in the update loop
+  }
+
+  // ---- Apply body transform ----
+  ctx.translate(bodySway, bodyBounce);
+  ctx.rotate(bodyTilt);
+
+  // ===== DRAW LEGS =====
+  // Hip position
+  const hipY = 8;
+
+  // Left leg
+  ctx.save();
+  ctx.translate(-7, hipY);
+  ctx.rotate(leftLegAngle);
+  // Upper leg
+  ctx.fillStyle = '#334';
+  ctx.strokeStyle = '#334';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 20);
+  ctx.stroke();
+  // Knee
+  ctx.translate(0, 20);
+  ctx.rotate(leftKneeAngle);
+  // Lower leg
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 18);
+  ctx.stroke();
+  // Shoe
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-8, 16, 16, 7);
+  ctx.fillStyle = '#ddd';
+  ctx.fillRect(-4, 18, 8, 4);
+  ctx.restore();
+
+  // Right leg
+  ctx.save();
+  ctx.translate(7, hipY);
+  ctx.rotate(rightLegAngle);
+  ctx.fillStyle = '#334';
+  ctx.strokeStyle = '#334';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 20);
+  ctx.stroke();
+  ctx.translate(0, 20);
+  ctx.rotate(rightKneeAngle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 18);
+  ctx.stroke();
+  // Shoe
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-8, 16, 16, 7);
+  ctx.fillStyle = '#ddd';
+  ctx.fillRect(-4, 18, 8, 4);
+  ctx.restore();
+
+  // ===== DRAW TORSO =====
+  const torsoGrad = ctx.createLinearGradient(-14, 0, 14, 0);
+  torsoGrad.addColorStop(0, '#ff5580');
+  torsoGrad.addColorStop(0.5, '#ff4470');
+  torsoGrad.addColorStop(1, '#cc3360');
+  ctx.fillStyle = torsoGrad;
+  ctx.beginPath();
+  ctx.roundRect(-14, -28, 28, 36, 6);
+  ctx.fill();
+
+  // Jacket details
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(-2, -28, 4, 36);
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fillRect(-14, -22, 28, 2);
+
+  // ===== DRAW ARMS =====
+  // Left arm
+  ctx.save();
+  ctx.translate(-13, -24);
+  ctx.rotate(leftUpperAngle);
+  ctx.fillStyle = '#ffe0c0';
+  ctx.strokeStyle = '#ffe0c0';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 16);
+  ctx.stroke();
+  // Sleeve
+  ctx.fillStyle = '#ff5580';
+  ctx.fillRect(-6, -2, 12, 8);
+  // Forearm
+  ctx.translate(0, 16);
+  ctx.rotate(leftForeAngle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 14);
+  ctx.stroke();
+  // Hand
+  ctx.fillStyle = '#ffe0c0';
+  ctx.beginPath();
+  ctx.arc(0, 16, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Right arm
+  ctx.save();
+  ctx.translate(13, -24);
+  ctx.rotate(rightUpperAngle);
+  ctx.fillStyle = '#ffe0c0';
+  ctx.strokeStyle = '#ffe0c0';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 16);
+  ctx.stroke();
+  ctx.fillStyle = '#ff5580';
+  ctx.fillRect(-6, -2, 12, 8);
+  ctx.translate(0, 16);
+  ctx.rotate(rightForeAngle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 14);
+  ctx.stroke();
+  ctx.fillStyle = '#ffe0c0';
+  ctx.beginPath();
+  ctx.arc(0, 16, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // ===== DRAW HEAD =====
+  ctx.save();
+  ctx.translate(0, -43);
+  ctx.rotate(headTilt);
+  ctx.translate(0, headBob * 0.3);
+
+  // Neck
+  ctx.fillStyle = '#f0d0b0';
+  ctx.fillRect(-5, 10, 10, 8);
+
+  // Head
+  ctx.fillStyle = '#ffe0c0';
+  ctx.beginPath();
+  ctx.arc(0, 0, 17, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hair (back + main)
+  ctx.fillStyle = '#3a1a4a';
+  ctx.beginPath();
+  ctx.arc(0, -3, 18, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(-18, -3, 36, 5);
+
+  // Side hair / bangs
+  ctx.beginPath();
+  ctx.moveTo(-18, -5);
+  ctx.quadraticCurveTo(-10, 8, -5, 12);
+  ctx.lineTo(-18, 12);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(18, -5);
+  ctx.quadraticCurveTo(10, 8, 5, 12);
+  ctx.lineTo(18, 12);
+  ctx.fill();
+
+  // Pigtails (bouncy!)
+  const pigtailBounce = Math.sin(t * 5) * 6 + beatPulseSharp * 8;
+  // Left pigtail
+  ctx.save();
+  ctx.translate(-14, -2);
+  ctx.rotate(0.3 + Math.sin(t * 4 + 0.5) * 0.2);
+  ctx.fillStyle = '#3a1a4a';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-8, 10 + pigtailBounce, -6, 22 + pigtailBounce);
+  ctx.quadraticCurveTo(2, 15 + pigtailBounce, 4, 8);
+  ctx.quadraticCurveTo(0, -2, 0, 0);
+  ctx.fill();
+  ctx.restore();
+  // Right pigtail
+  ctx.save();
+  ctx.translate(14, -2);
+  ctx.rotate(-0.3 + Math.cos(t * 4 + 0.5) * 0.2);
+  ctx.fillStyle = '#3a1a4a';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(8, 10 + pigtailBounce, 6, 22 + pigtailBounce);
+  ctx.quadraticCurveTo(-2, 15 + pigtailBounce, -4, 8);
+  ctx.quadraticCurveTo(0, -2, 0, 0);
+  ctx.fill();
+  ctx.restore();
+
+  // Hair accessory (bow/ribbon)
+  ctx.fillStyle = '#ff6b9d';
+  ctx.beginPath();
+  ctx.arc(-5, -8, 5, 0, Math.PI * 2);
+  ctx.arc(5, -8, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ff88b0';
+  ctx.beginPath();
+  ctx.arc(0, -5, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Face
+  // Eyes (react to game state)
+  const eyeOpen = dancerMove === 'stumble' ? 0.3 : 1;
+  // Left eye
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-6, -2, 5, 4 * eyeOpen, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.arc(-6, -1, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(-7, -2, 1, 0, Math.PI * 2);
+  ctx.fill();
+  // Right eye
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(6, -2, 5, 4 * eyeOpen, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.arc(6, -1, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(5, -2, 1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyebrows
+  ctx.strokeStyle = '#3a1a4a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-10, -8);
+  ctx.lineTo(-3, -7);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(10, -8);
+  ctx.lineTo(3, -7);
+  ctx.stroke();
+
+  // Mouth (changes based on mood)
+  const mouthHappy = combo > 30;
+  const mouthSad = dancerMove === 'stumble';
+  ctx.strokeStyle = '#c47070';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (mouthSad) {
+    ctx.arc(0, 4, 5, Math.PI * 0.1, Math.PI * 0.9);
+  } else if (mouthHappy) {
+    ctx.arc(0, 3, 6, 0, Math.PI);
+  } else {
+    ctx.arc(0, 3, 4, 0, Math.PI);
+  }
+  ctx.stroke();
+
+  // Blush
+  ctx.fillStyle = 'rgba(255,150,150,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(-9, 3, 4, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(9, 3, 4, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore(); // head
+
+  ctx.restore(); // main transform
+}
+
+function drawBeatPulse() {
+  if (!audioCtx) return;
+  const songPos = audioCtx.currentTime - songStartTime;
+  const beatInBar = (songPos / BEAT_DURATION) % 4;
+  const pulse = Math.max(0, 1 - beatInBar * 2) * 0.08; // Strong on beat
+
+  if (pulse > 0.01) {
+    ctx.fillStyle = `rgba(255,255,255,${pulse})`;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  }
+}
+
+function render() {
+  drawStage();
+  drawLanes();
+  drawArrows();
+  drawEffects();
+  drawDancer();
+  drawBeatPulse();
+}
+
+function gameLoop() {
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== GAME FLOW ====================
+function startGame(diff) {
+  initAudio();
+  difficulty = diff;
+
+  // Reset state
+  score = 0;
+  combo = 0;
+  maxCombo = 0;
+  perfectCount = 0; greatCount = 0; goodCount = 0; missCount = 0;
+  gameRunning = false;
+  gameFinished = false;
+  effects = [];
+  particles = [];
+  stageLights = [];
+  lastJudgment = null;
+  dancerAnim = 0;
+  dancerMove = 'groove';
+  dancerPrevMove = 'groove';
+  dancerMoveTimer = 0;
+  dancerMoveTransition = 0;
+  dancerBeatPhase = 0;
+  danceMoveQueue = [];
+
+  // Generate beatmap
+  beatmap = generateBeatmap(difficulty);
+  spawnArrows();
+
+  // UI
+  document.getElementById('start-screen').classList.remove('show');
+  document.getElementById('result-screen').classList.remove('show');
+  document.getElementById('overlay').classList.remove('active');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('hud-score').textContent = '0';
+  document.getElementById('hud-combo').style.display = 'none';
+
+  // Schedule audio
+  const now = audioCtx.currentTime;
+  songStartTime = now + 0.8;
+  scheduleSong(songStartTime);
+
+  // Start game after buffer
+  setTimeout(() => {
+    gameRunning = true;
+  }, 800);
+}
+
+function endGame() {
+  gameRunning = false;
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('overlay').classList.add('active');
+
+  const total = perfectCount + greatCount + goodCount + missCount;
+  const acc = total > 0 ? Math.round((perfectCount * 100 + greatCount * 80 + goodCount * 50) / total) : 0;
+
+  // Grade
+  let grade = 'C', gradeClass = 'grade-c';
+  if (acc >= 95 && missCount <= 5) { grade = 'S'; gradeClass = 'grade-s'; }
+  else if (acc >= 85) { grade = 'A'; gradeClass = 'grade-a'; }
+  else if (acc >= 70) { grade = 'B'; gradeClass = 'grade-b'; }
+
+  document.getElementById('result-grade').textContent = grade;
+  document.getElementById('result-grade').className = 'result-grade ' + gradeClass;
+  document.getElementById('result-score').textContent = score;
+  document.getElementById('result-max-combo').textContent = maxCombo;
+  document.getElementById('result-acc').textContent = acc + '%';
+  document.getElementById('res-perfect').textContent = perfectCount;
+  document.getElementById('res-great').textContent = greatCount;
+  document.getElementById('res-good').textContent = goodCount;
+  document.getElementById('res-miss').textContent = missCount;
+  document.getElementById('result-screen').classList.add('show');
+}
+
+function showStartScreen() {
+  gameRunning = false;
+  gameFinished = false;
+  document.getElementById('result-screen').classList.remove('show');
+  document.getElementById('start-screen').classList.add('show');
+  document.getElementById('overlay').classList.add('active');
+  document.getElementById('hud').style.display = 'none';
+}
+
+// ==================== INPUT ====================
+function handleLanePress(lane) {
+  if (!gameRunning || gameFinished) return;
+  judgeArrow(lane);
+}
+
+document.addEventListener('keydown', e => {
+  if (!gameRunning || gameFinished) return;
+  initAudio();
+
+  switch (e.key) {
+    case 'ArrowLeft':  handleLanePress(0); e.preventDefault(); break;
+    case 'ArrowUp':    handleLanePress(1); e.preventDefault(); break;
+    case 'ArrowDown':  handleLanePress(2); e.preventDefault(); break;
+    case 'ArrowRight': handleLanePress(3); e.preventDefault(); break;
+  }
+});
+
+// Touch support
+canvas.addEventListener('click', e => {
+  if (!gameRunning || gameFinished) return;
+  initAudio();
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = CANVAS_W / rect.width;
+  const scaleY = CANVAS_H / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  // Check which lane was clicked
+  for (let i = 0; i < LANE_COUNT; i++) {
+    const lx = LANES_X[i] - LANE_W / 2;
+    if (mx >= lx && mx <= lx + LANE_W) {
+      handleLanePress(i);
+      break;
+    }
+  }
+});
+
+// ==================== INIT ====================
+document.getElementById('start-screen').classList.add('show');
+document.getElementById('overlay').classList.add('active');
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
